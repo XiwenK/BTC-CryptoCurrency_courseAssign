@@ -1,5 +1,6 @@
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 
 public class TxHandler {
@@ -25,30 +26,26 @@ public class TxHandler {
      *     values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
-        if (tx == null || tx.getInputs() == null || tx.getInputs().size() == 0 || tx.getOutputs() == null || tx.getOutputs().size() == 0 || tx.getHash() == null) return false;
-
-        List<Transaction.Input> ins = tx.getInputs();
+        if (tx == null || tx.getInputs() == null || tx.getOutputs() == null || tx.getHash() == null) return false;
 
         Set<UTXO> doubleSpentSet = new HashSet<>();
-        double inputValues = 0;
-        for (int i = 0; i < ins.size(); i ++) {
-            Transaction.Input in = ins.get(i);
+        double inputValues = 0.0;
+        for (int i = 0; i < tx.numInputs(); i ++) {
+            Transaction.Input in = tx.getInput(i);
 
             // check if input originates from UTXOPool and if double spent and if input siganture is valid
-            if (in.prevTxHash == null || in.outputIndex < 0 || in.signature == null) return false; 
+            if (in == null || in.prevTxHash == null || in.outputIndex < 0 || in.signature == null) return false; 
 
             UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
 
-            if (!utxoPool.contains(utxo) || doubleSpentSet.contains(utxo)) return false;
-
-            doubleSpentSet.add(utxo);
+            if (!utxoPool.contains(utxo) || !doubleSpentSet.add(utxo)) return false;
 
             // check if input siganture is valid and if output value is valid, pubKey is the output address
             Transaction.Output op = utxoPool.getTxOutput(utxo);
 
-            if (op == null || op.address == null || op.value < 0) return false;
+            if (op == null || op.address == null || op.value <= 0.0) return false;
 
-            // the address is the input owner's address
+            // the address is the input owner's address, so check for current tx input-output pair is correct
             byte[] message = tx.getRawDataToSign(i);
             if (message == null || !Crypto.verifySignature(op.address, message, in.signature)) return false;
 
@@ -56,9 +53,9 @@ public class TxHandler {
         }
 
         // check if inputs larger than outputs
-        double outputValues = 0;
+        double outputValues = 0.0;
         for (Transaction.Output op : tx.getOutputs()) {
-            if (op.address == null || op.value < 0) return false;
+            if (op.address == null || op.value <= 0.0) return false;
             outputValues += op.value;
         } 
 
@@ -73,8 +70,29 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        // IMPLEMENT THIS
-        return null;
+        Set<Transaction> validTxs = new HashSet<>();
+
+        for (Transaction tx : possibleTxs) {
+            // if tx is valid
+            if (isValidTx(tx)) {
+                // remove used utxos in pool
+                for (Transaction.Input in : tx.getInputs()) {
+                    UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
+                    utxoPool.removeUTXO(utxo);
+                }
+
+                // add new utxos into pool
+                for (int i = 0; i < tx.numOutputs(); i ++) {
+                    Transaction.Output op = tx.getOutput(i);
+                    UTXO utxo = new UTXO(tx.getHash(), i);
+                    utxoPool.addUTXO(utxo, op);
+                }
+
+                validTxs.add(tx);
+            }
+        }
+
+        return (Transaction[]) validTxs.toArray(new Transaction[validTxs.size()]);
     }
 
 }
