@@ -1,6 +1,4 @@
 import java.util.HashSet;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.Set;
 
 public class TxHandler {
@@ -43,7 +41,7 @@ public class TxHandler {
             // check if input siganture is valid and if output value is valid, pubKey is the output address
             Transaction.Output op = utxoPool.getTxOutput(utxo);
 
-            if (op == null || op.address == null || op.value <= 0.0) return false;
+            if (op == null || op.address == null || op.value < 0.0) return false;
 
             // the address is the input owner's address, so check for current tx input-output pair is correct
             byte[] message = tx.getRawDataToSign(i);
@@ -55,7 +53,7 @@ public class TxHandler {
         // check if inputs larger than outputs
         double outputValues = 0.0;
         for (Transaction.Output op : tx.getOutputs()) {
-            if (op.address == null || op.value <= 0.0) return false;
+            if (op.address == null || op.value < 0.0) return false;
             outputValues += op.value;
         } 
 
